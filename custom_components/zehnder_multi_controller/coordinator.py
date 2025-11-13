@@ -1,5 +1,3 @@
-"""Coordinator for the Zehnder Multi Controller integration."""
-
 from __future__ import annotations
 
 from datetime import timedelta
@@ -14,6 +12,10 @@ from homeassistant.helpers.update_coordinator import (
 
 from .api import RainmakerAPI
 from .const import DEFAULT_SCAN_INTERVAL
+
+
+"""Coordinator for the Zehnder Multi Controller integration."""
+
 
 _LOGGER = logging.getLogger(__name__)
 

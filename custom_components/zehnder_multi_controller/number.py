@@ -1,5 +1,3 @@
-"""Number platform for Zehnder Multi Controller (Rainmaker)."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -13,7 +11,10 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import DeviceInfo
 
-from .const import DOMAIN, PARAM_MAPPINGS
+from .const import DOMAIN, detect_param_info
+
+"""Number platform for Zehnder Multi Controller (Rainmaker)."""
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,12 +33,11 @@ class RainmakerParamNumber(CoordinatorEntity, NumberEntity):
         self._param = param
         self._attr_name = f"{node.get('name') or node.get('nodeid')} {param}"
         self._unique_id = f"{entry_id}_{node.get('nodeid')}_{param}"
-        self._mapping = PARAM_MAPPINGS.get(param.lower(), {})
-
-        props = self._mapping.get("properties", {})
-        self._attr_min_value = props.get("min")
-        self._attr_max_value = props.get("max")
-        self._attr_step = props.get("step")
+        # Use metadata-driven detection for properties; platforms will
+        # populate these attributes at setup based on `detect_param_info`.
+        self._attr_min_value = None
+        self._attr_max_value = None
+        self._attr_step = None
 
     @property
     def name(self) -> str:
@@ -96,17 +96,23 @@ async def async_setup_entry(
         params = node.get("params", {})
         params_meta = node.get("params_meta", {})
         for param, value in params.items():
-            mapping = PARAM_MAPPINGS.get(param.lower()) or {}
-            if mapping.get("entity") != "number":
+            meta = params_meta.get(param, {})
+            info = detect_param_info(param, value, meta)
+            if info.get("entity") != "number":
                 continue
 
-            meta = params_meta.get(param, {})
             props = meta.get("properties", []) or []
             if props and "read" not in props:
                 continue
 
-            entities.append(
-                RainmakerParamNumber(coordinator, entry.entry_id, node, param)
-            )
+            entity = RainmakerParamNumber(coordinator, entry.entry_id, node, param)
+            # populate number ranges from metadata if present
+            props_meta = info.get("properties") or {}
+            if isinstance(props_meta, dict):
+                entity._attr_min_value = props_meta.get("min")
+                entity._attr_max_value = props_meta.get("max")
+                entity._attr_step = props_meta.get("step")
+
+            entities.append(entity)
 
     async_add_entities(entities, True)

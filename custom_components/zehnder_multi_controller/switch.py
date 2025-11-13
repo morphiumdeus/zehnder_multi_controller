@@ -11,7 +11,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import DeviceInfo
 
-from .const import DOMAIN, PARAM_MAPPINGS
+from .const import DOMAIN, detect_param_info
 
 """Switch platform for Zehnder Multi Controller (Rainmaker)."""
 
@@ -32,7 +32,7 @@ class RainmakerParamSwitch(CoordinatorEntity, SwitchEntity):
         self._param = param
         self._attr_name = f"{node.get('name') or node.get('nodeid')} {param}"
         self._unique_id = f"{entry_id}_{node.get('nodeid')}_{param}"
-        self._mapping = PARAM_MAPPINGS.get(param.lower(), {})
+        self._mapping: dict | None = None
 
     @property
     def name(self) -> str:
@@ -102,17 +102,17 @@ async def async_setup_entry(
         params = node.get("params", {})
         params_meta = node.get("params_meta", {})
         for param, value in params.items():
-            mapping = PARAM_MAPPINGS.get(param.lower()) or {}
-            if mapping.get("entity") != "switch":
+            meta = params_meta.get(param, {})
+            info = detect_param_info(param, value, meta)
+            if info.get("entity") != "switch":
                 continue
 
-            meta = params_meta.get(param, {})
             props = meta.get("properties", []) or []
             if props and "read" not in props:
                 continue
 
-            entities.append(
-                RainmakerParamSwitch(coordinator, entry.entry_id, node, param)
-            )
+            entity = RainmakerParamSwitch(coordinator, entry.entry_id, node, param)
+            entity._mapping = info
+            entities.append(entity)
 
     async_add_entities(entities, True)

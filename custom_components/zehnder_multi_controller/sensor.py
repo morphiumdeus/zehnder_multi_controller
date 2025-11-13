@@ -11,7 +11,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import DeviceInfo
 
-from .const import DOMAIN, PARAM_MAPPINGS
+from .const import DOMAIN, detect_param_info
 
 """Sensor platform for Zehnder Multi Controller (Rainmaker)."""
 
@@ -33,7 +33,7 @@ class RainmakerParamSensor(CoordinatorEntity, SensorEntity):
         self._param = param
         self._attr_name = f"{node.get('name') or node.get('nodeid')} {param}"
         self._unique_id = f"{entry_id}_{node.get('nodeid')}_{param}"
-        self._mapping = PARAM_MAPPINGS.get(param.lower())
+        self._mapping: dict | None = None
 
     @property
     def name(self) -> str:
@@ -91,18 +91,27 @@ async def async_setup_entry(
             if isinstance(value, (dict, list)):
                 continue
 
-            mapping = PARAM_MAPPINGS.get(param.lower())
-            if mapping and mapping.get("entity") in ("switch", "number"):
-                continue
-
             params_meta = node.get("params_meta", {})
             meta = params_meta.get(param, {})
+            info = detect_param_info(param, value, meta)
+            if info.get("entity") in ("switch", "number"):
+                continue
+
             props = meta.get("properties", []) or []
             if props and "read" not in props:
                 continue
 
-            entities.append(
-                RainmakerParamSensor(coordinator, entry.entry_id, node, param)
-            )
+            entity = RainmakerParamSensor(coordinator, entry.entry_id, node, param)
+            # Attach detected info so the entity properties can use it
+            entity._mapping = info
+            # set unit and device class attributes if available
+            unit = info.get("unit")
+            if unit:
+                entity._attr_native_unit_of_measurement = unit
+            device_class = info.get("device_class")
+            if device_class:
+                entity._attr_device_class = device_class
+
+            entities.append(entity)
 
     async_add_entities(entities, True)
