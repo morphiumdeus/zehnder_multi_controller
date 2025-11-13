@@ -1,10 +1,3 @@
-"""HTTP-only adapter for the Zehnder Multi Controller / Rainmaker API.
-
-This implementation uses the `rainmaker-http` PyPI package to perform
-all API requests. It intentionally does not include alternative fallbacks
-or the upstream runtime; that logic lives in the PyPI package.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -14,6 +7,13 @@ from typing import Any, cast
 from aiohttp import ClientError
 
 from rainmaker_http.client import RainmakerClient
+
+"""HTTP-only adapter for the Zehnder Multi Controller / Rainmaker API.
+
+This implementation uses the `rainmaker-http` PyPI package to perform
+all API requests. It intentionally does not include alternative fallbacks
+or the upstream runtime; that logic lives in the PyPI package.
+"""
 
 _LOGGER = logging.getLogger(__name__)
 

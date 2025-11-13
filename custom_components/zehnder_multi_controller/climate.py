@@ -1,5 +1,3 @@
-"""Climate platform for Zehnder Multi Controller (Rainmaker)."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -18,6 +16,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import DeviceInfo
 
 from .const import DOMAIN, PARAM_MAPPINGS
+
+"""Climate platform for Zehnder Multi Controller (Rainmaker)."""
 
 _LOGGER = logging.getLogger(__name__)
 

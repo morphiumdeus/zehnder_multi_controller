@@ -1,5 +1,3 @@
-"""Config flow for the Zehnder Multi Controller integration."""
-
 from __future__ import annotations
 
 import logging
@@ -13,6 +11,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import DOMAIN
+
+"""Config flow for the Zehnder Multi Controller integration."""
 
 _LOGGER = logging.getLogger(__name__)
 

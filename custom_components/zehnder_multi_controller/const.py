@@ -1,9 +1,10 @@
-"""Constants for Zehnder Multi Controller integration."""
-
 from __future__ import annotations
 
 from datetime import timedelta
 from homeassistant.const import Platform
+
+"""Constants for Zehnder Multi Controller integration."""
+
 
 DOMAIN = "zehnder_multi_controller"
 PLATFORMS: list[Platform] = [
