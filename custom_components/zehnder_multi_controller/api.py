@@ -1,105 +1,3 @@
-"""API adapter using rainmaker-http for Zehnder Multi Controller."""
-
-from __future__ import annotations
-
-from typing import Any
-import logging
-
-from rainmaker_http.client import RainmakerClient
-
-from homeassistant.core import HomeAssistant
-
-from .const import DOMAIN
-
-_LOGGER = logging.getLogger(__name__)
-
-
-class RainmakerAPI:
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        host: str | None,
-        username: str | None,
-        password: str | None,
-    ) -> None:
-        self.hass = hass
-        self.host = host
-        self.username = username
-        self.password = password
-        self.client: RainmakerClient | None = None
-        self._service_wrapper_cache: dict[str, str] = {}
-        self._param_service_map: dict[str, dict[str, str]] = {}
-
-    async def async_connect(self) -> None:
-        self.client = RainmakerClient(self.host)
-        await self.client.async_login(self.username, self.password)
-
-    async def async_get_nodes(self) -> list[dict[str, Any]]:
-        assert self.client
-        raw = await self.client.async_get_nodes()
-        nodes: list[dict[str, Any]] = []
-        for item in raw:
-            nodeid = item.get("nodeid")
-            node = {"nodeid": nodeid, "name": item.get("name"), "params": {}}
-            await self._fetch_node_details(node, item)
-            nodes.append(node)
-        return nodes
-
-    async def _unwrap_params(
-        self, params: dict[str, Any]
-    ) -> tuple[dict[str, Any], str | None]:
-        if not isinstance(params, dict):
-            return {}, None
-        keys = list(params.keys())
-        if len(keys) == 1 and isinstance(params[keys[0]], dict):
-            return params[keys[0]], keys[0]
-        return params, None
-
-    async def _fetch_node_details(
-        self, node: dict[str, Any], item: dict[str, Any]
-    ) -> None:
-        assert self.client
-        nodeid = node.get("nodeid")
-        params = await self.client.async_get_params(nodeid)
-        params_flat, wrapper = await self._unwrap_params(params)
-        node["params"] = params_flat
-
-        if wrapper:
-            self._service_wrapper_cache[nodeid] = wrapper
-
-        config = await self.client.async_get_config(nodeid)
-        param_map: dict[str, str] = {}
-        for svc_name, svc in (config or {}).items():
-            for param in (
-                svc.get("parameters", [])
-                if isinstance(svc.get("parameters"), list)
-                else []
-            ):
-                param_map[param.get("name")] = svc_name
-
-        node["params_meta"] = {
-            p.get("name"): p
-            for s in (config or {}).values()
-            for p in s.get("parameters", [])
-        }
-        self._param_service_map[nodeid] = param_map
-
-    async def async_set_param(self, nodeid: str, param: str, value: Any) -> None:
-        assert self.client
-        svc = self._param_service_map.get(nodeid, {}).get(param)
-        if svc:
-            wrapper = self._service_wrapper_cache.get(nodeid)
-            payload = (
-                {svc: {param: value}}
-                if not wrapper
-                else {wrapper: {svc: {param: value}}}
-            )
-        else:
-            payload = {param: value}
-
-        await self.client.async_set_params([{"nodeid": nodeid, "params": payload}])
-
-
 """HTTP-only adapter for the Zehnder Multi Controller / Rainmaker API.
 
 This implementation uses the `rainmaker-http` PyPI package to perform
@@ -109,6 +7,7 @@ or the upstream runtime; that logic lives in the PyPI package.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, cast
 

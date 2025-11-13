@@ -1,39 +1,3 @@
-"""Config flow for Zehnder Multi Controller (Rainmaker)."""
-
-from __future__ import annotations
-
-import logging
-
-from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
-
-from .api import RainmakerAPI
-
-_LOGGER = logging.getLogger(__name__)
-
-
-class ZehnderFlowHandler(config_entries.ConfigFlow, domain="zehnder_multi_controller"):
-    async def async_step_user(self, user_input=None):
-        errors = {}
-        if user_input is not None:
-            api = RainmakerAPI(
-                self.hass,
-                user_input.get("host"),
-                user_input.get("username"),
-                user_input.get("password"),
-            )
-            try:
-                await api.async_connect()
-            except Exception:  # pragma: no cover - bubble up for UI
-                errors["base"] = "cannot_connect"
-            else:
-                return self.async_create_entry(
-                    title=user_input.get("host"), data=user_input
-                )
-
-        return self.async_show_form(step_id="user", data_schema={}, errors=errors)
-
-
 """Config flow for the Zehnder Multi Controller integration."""
 
 from __future__ import annotations

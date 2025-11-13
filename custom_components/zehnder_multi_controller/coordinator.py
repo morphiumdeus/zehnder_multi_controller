@@ -1,42 +1,3 @@
-"""Coordinator for Zehnder Multi Controller (Rainmaker)."""
-
-from __future__ import annotations
-
-from datetime import timedelta
-import logging
-
-from homeassistant.helpers.update_coordinator import (
-    DataUpdateCoordinator,
-    UpdateFailed,
-)
-from homeassistant.core import HomeAssistant
-
-from .api import RainmakerAPI
-
-_LOGGER = logging.getLogger(__name__)
-
-DEFAULT_SCAN_INTERVAL = timedelta(seconds=30)
-
-
-class RainmakerCoordinator(DataUpdateCoordinator):
-    def __init__(self, hass: HomeAssistant, api: RainmakerAPI, entry) -> None:
-        super().__init__(
-            hass,
-            _LOGGER,
-            name="rainmaker",
-            update_interval=DEFAULT_SCAN_INTERVAL,
-        )
-        self.api = api
-        self.entry = entry
-
-    async def _async_update_data(self):
-        try:
-            nodes = await self.api.async_get_nodes()
-            return nodes
-        except Exception as err:  # pragma: no cover - let upstream handle retries
-            raise UpdateFailed from err
-
-
 """Coordinator for the Zehnder Multi Controller integration."""
 
 from __future__ import annotations
@@ -60,7 +21,9 @@ _LOGGER = logging.getLogger(__name__)
 class RainmakerCoordinator(DataUpdateCoordinator):
     """Coordinator to fetch Rainmaker nodes and params."""
 
-    def __init__(self, hass: HomeAssistant, api: RainmakerAPI) -> None:
+    def __init__(
+        self, hass: HomeAssistant, api: RainmakerAPI, entry: object | None = None
+    ) -> None:
         super().__init__(
             hass,
             _LOGGER,
@@ -68,9 +31,11 @@ class RainmakerCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
         )
         self.api = api
+        self.entry = entry
 
     async def _async_update_data(self):
         try:
+            # Ensure API is connected
             if not getattr(self.api, "is_connected", False):
                 _LOGGER.debug("API not connected, attempting reconnect")
                 if getattr(self.api, "async_connect", None):

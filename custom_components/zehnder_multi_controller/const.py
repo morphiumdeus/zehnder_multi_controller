@@ -1,32 +1,29 @@
 """Constants for Zehnder Multi Controller integration."""
 
-DOMAIN = "zehnder_multi_controller"
-
-# Basic mapping for some known params to HA entity types and units
-PARAM_MAPPINGS = {
-    "temperature": {"entity": "climate", "unit": "°C"},
-    "setpoint": {"entity": "number", "unit": "°C"},
-    "power": {"entity": "switch"},
-    "fan": {"entity": "number"},
-}
 """Constants for the Zehnder Multi Controller (Rainmaker) integration."""
 
 from __future__ import annotations
 
+from datetime import timedelta
 from homeassistant.const import Platform
 
 DOMAIN = "zehnder_multi_controller"
 PLATFORMS: list[Platform] = [
+    Platform.CLIMATE,
+    Platform.NUMBER,
     Platform.SENSOR,
     Platform.SWITCH,
-    Platform.NUMBER,
-    Platform.CLIMATE,
 ]
 
 # Default polling interval in seconds
 DEFAULT_SCAN_INTERVAL = 30
 
+# Basic mapping for some known params to HA entity types and units
 PARAM_MAPPINGS: dict[str, dict[str, str]] = {
+    "temperature": {"entity": "climate", "unit": "°C"},
+    "setpoint": {"entity": "number", "unit": "°C"},
+    "power": {"entity": "switch"},
+    "fan": {"entity": "number"},
     "temp": {"entity": "sensor", "device_class": "temperature", "unit": "°C"},
     "temp_setpoint": {"entity": "number", "device_class": "temperature", "unit": "°C"},
     "humidity": {"entity": "sensor", "device_class": "humidity", "unit": "%"},
