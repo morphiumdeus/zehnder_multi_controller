@@ -1,7 +1,5 @@
 """Constants for Zehnder Multi Controller integration."""
 
-"""Constants for the Zehnder Multi Controller (Rainmaker) integration."""
-
 from __future__ import annotations
 
 from datetime import timedelta

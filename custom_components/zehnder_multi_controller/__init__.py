@@ -8,8 +8,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 
-from .api import RainmakerAPI
-from .coordinator import RainmakerCoordinator
 from .const import DOMAIN, PLATFORMS
 
 _LOGGER = logging.getLogger(__name__)
@@ -24,6 +22,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     host = data.get("host")
     username = data.get("username")
     password = data.get("password")
+
+    # Import API and coordinator lazily to avoid requiring optional
+    # dependencies (like `rainmaker-http`) at import time when the
+    # config flow UI is loaded
+    from .api import RainmakerAPI
+    from .coordinator import RainmakerCoordinator
 
     api = RainmakerAPI(hass, host, username, password)
     try:

@@ -13,7 +13,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import DOMAIN
-from .api import RainmakerAPI, RainmakerConnectionError, RainmakerAuthError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,6 +28,19 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
+    # Import the API implementation lazily so the config flow can be loaded
+    # even if the optional runtime dependency (`rainmaker-http`) is not
+    # yet installed. Installing requirements happens when the integration
+    # is set up, but the UI must be able to import this module first.
+    try:
+        from .api import (
+            RainmakerAPI,
+            RainmakerConnectionError,
+            RainmakerAuthError,
+        )
+    except Exception as err:  # pragma: no cover - defensive fallback
+        raise CannotConnect from err
+
     api = RainmakerAPI(hass, data[CONF_HOST], data[CONF_USERNAME], data[CONF_PASSWORD])
     try:
         await api.async_connect()
