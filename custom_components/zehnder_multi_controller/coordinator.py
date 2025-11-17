@@ -14,9 +14,6 @@ from .api import RainmakerAPI
 from .const import DEFAULT_SCAN_INTERVAL
 
 
-"""Coordinator for the Zehnder Multi Controller integration."""
-
-
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -35,48 +32,30 @@ class RainmakerCoordinator(DataUpdateCoordinator):
         self.api = api
         self.entry = entry
 
+    async def _ensure_connected(self):
+        # Ensure API is connected
+        if not getattr(self.api, "is_connected", False):
+            _LOGGER.debug("API not connected, attempting reconnect")
+            await self.api.async_connect()
+
     async def _async_update_data(self):
+        await self._ensure_connected()
         try:
-            # Ensure API is connected
-            if not getattr(self.api, "is_connected", False):
-                _LOGGER.debug("API not connected, attempting reconnect")
-                if getattr(self.api, "async_connect", None):
-                    await self.api.async_connect()
-
-            try:
-                nodes = await self.api.async_get_nodes()
-            except Exception as err:  # first attempt failed, try reconnect once
-                _LOGGER.debug("First nodes fetch failed: %s; attempting reconnect", err)
-                try:
-                    await self.api.async_connect()
-                    nodes = await self.api.async_get_nodes()
-                except Exception as err2:
-                    _LOGGER.debug("Reconnect+refetch failed: %s", err2)
-                    raise UpdateFailed(err2) from err2
-
-            def _data_complete(nodes_list: list[dict[str, Any]] | None) -> bool:
-                if not nodes_list:
-                    return False
-                for n in nodes_list:
-                    if not isinstance(n, dict):
-                        return False
-                    if not n.get("params"):
-                        return False
-                return True
-
-            if not _data_complete(nodes):
-                _LOGGER.debug("Node data incomplete, attempting a reconnect+refetch")
-                try:
-                    await self.api.async_connect()
-                    nodes2 = await self.api.async_get_nodes()
-                    if _data_complete(nodes2):
-                        return nodes2
-                    _LOGGER.debug("Data still incomplete after reconnect")
-                    raise UpdateFailed("Incomplete node data after reconnect")
-                except Exception as err3:
-                    _LOGGER.debug("Reconnect attempt failed: %s", err3)
-                    raise UpdateFailed(err3) from err3
-
-            return nodes
+            nodes = await self.api.async_get_nodes()
         except Exception as err:
             raise UpdateFailed(err) from err
+
+        if not ("nodes" in nodes and "node_details" in nodes):
+            raise UpdateFailed(f"API response not in the excepted format: {nodes}")
+
+        nodes_dict = {}
+        for nd in nodes["node_details"]:
+            node_id = nd["id"]
+            config_params = nd["config"]["devices"][0]["params"]
+            param_vals = nd["params"]["multicontrol"]
+            transformed_params = {}
+            for param, meta in config_params.items():
+                transformed_params[param] = meta.copy()
+                transformed_params[param]["value"] = param_vals.get(param)
+            nodes_dict[node_id] = transformed_params
+        return nodes_dict

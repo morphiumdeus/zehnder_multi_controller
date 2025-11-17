@@ -4,7 +4,7 @@ from typing import Any
 import logging
 from functools import cached_property
 
-from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -14,12 +14,10 @@ from homeassistant.helpers.entity import DeviceInfo
 
 from .const import DOMAIN
 
-"""Switch platform for Zehnder Multi Controller (Rainmaker)."""
-
 _LOGGER = logging.getLogger(__name__)
 
 
-class RainmakerParamSwitch(CoordinatorEntity, SwitchEntity):
+class RainmakerParamBinarySensor(CoordinatorEntity, BinarySensorEntity):
     def __init__(
         self,
         coordinator: DataUpdateCoordinator,
@@ -56,48 +54,26 @@ class RainmakerParamSwitch(CoordinatorEntity, SwitchEntity):
             manufacturer="ESP RainMaker",
         )
 
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        try:
-            await self.hass.data[DOMAIN][self._entry_id][
-                "coordinator"
-            ].api.async_set_param(self._node_id, self._param, True)
-        except Exception:  # pragma: no cover - surface errors to logs
-            _LOGGER.exception("Error turning on %s on node %s", self._param, self._node_id)
-        finally:
-            await self.hass.data[DOMAIN][self._entry_id][
-                "coordinator"
-            ].async_request_refresh()
-
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        try:
-            await self.hass.data[DOMAIN][self._entry_id][
-                "coordinator"
-            ].api.async_set_param(self._node_id, self._param, False)
-        except Exception:  # pragma: no cover - surface errors to logs
-            _LOGGER.exception(
-                "Error turning off %s on node %s", self._param, self._node_id
-            )
-        finally:
-            await self.hass.data[DOMAIN][self._entry_id][
-                "coordinator"
-            ].async_request_refresh()
-
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
     if not entry_data:
-        _LOGGER.debug("No entry data for %s, skipping switch setup", entry.entry_id)
+        _LOGGER.debug("No entry data for %s, skipping binary sensor setup", entry.entry_id)
         return
 
     coordinator: DataUpdateCoordinator = entry_data["coordinator"]
 
-    entities: list[RainmakerParamSwitch] = []
+    entities: list[RainmakerParamBinarySensor] = []
     for node_id, params in coordinator.data.items():
         for param, meta in params.items():
-            if meta.get("data_type") == "bool" and "write" in meta.get("properties", []):
-                entity = RainmakerParamSwitch(coordinator, entry.entry_id, node_id, param)
+            if (
+                meta.get("data_type") == "bool"
+                and "read" in meta.get("properties", [])
+                and "write" not in meta.get("properties", [])
+            ):
+                entity = RainmakerParamBinarySensor(coordinator, entry.entry_id, node_id, param)
                 entities.append(entity)
 
     async_add_entities(entities, True)

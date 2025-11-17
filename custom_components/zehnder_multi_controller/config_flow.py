@@ -11,8 +11,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import DOMAIN
+from .api import (
+            RainmakerAPI,
+            RainmakerConnectionError,
+            RainmakerAuthError,
+        )
 
-"""Config flow for the Zehnder Multi Controller integration."""
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,30 +32,8 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
-    # Import the API implementation lazily so the config flow can be loaded
-    # even if the optional runtime dependency (`rainmaker-http`) is not
-    # yet installed. Installing requirements happens when the integration
-    # is set up, but the UI must be able to import this module first.
-    try:
-        from .api import (
-            RainmakerAPI,
-            RainmakerConnectionError,
-            RainmakerAuthError,
-        )
-    except Exception as err:  # pragma: no cover - defensive fallback
-        raise CannotConnect from err
-
     api = RainmakerAPI(hass, data[CONF_HOST], data[CONF_USERNAME], data[CONF_PASSWORD])
-    try:
-        await api.async_connect()
-    except RainmakerConnectionError as err:
-        raise CannotConnect from err
-    except RainmakerAuthError as err:
-        raise InvalidAuth from err
-    except Exception as err:
-        if isinstance(err, (CannotConnect, InvalidAuth)):
-            raise
-        raise InvalidAuth from err
+    await api.async_connect()
 
     return {"title": "Name of the device"}
 
@@ -64,33 +46,37 @@ class ZehnderConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        """Handle the initial user step.
+
+        Validate credentials using `validate_input`. Provide specific user-facing
+        errors for authentication or connectivity failures and fall back to a
+        generic unknown error for anything else.
+        """
+
         errors: dict[str, str] = {}
-        if user_input is not None:
-            try:
-                info = await validate_input(self.hass, user_input)
-            except CannotConnect:
-                errors["base"] = "cannot_connect"
-            except InvalidAuth:
-                errors["base"] = "invalid_auth"
-            except Exception:
-                _LOGGER.exception("Unexpected exception")
-                errors["base"] = "unknown"
-            else:
-                host = user_input.get(CONF_HOST)
-                if host:
-                    await self.async_set_unique_id(host)
-                    self._abort_if_unique_id_configured()
 
-                return self.async_create_entry(title=info["title"], data=user_input)
+        if user_input is None:
+            return self.async_show_form(data_schema=STEP_USER_DATA_SCHEMA, errors=errors)
 
-        return self.async_show_form(
-            step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
-        )
+        try:
+            info = await validate_input(self.hass, user_input)
+        except RainmakerAuthError:
+            errors["base"] = "auth"
+        except RainmakerConnectionError:
+            errors["base"] = "cannot_connect"
+        except Exception:  # pragma: no cover - unexpected
+            _LOGGER.exception("Unexpected exception during config flow validation")
+            errors["base"] = "unknown"
+        else:
+            # Use a stable, specific unique id (host + username) so multiple
+            # accounts pointing to the same host can be distinguished.
+            host = (user_input.get(CONF_HOST) or "").rstrip("/")
+            username = user_input.get(CONF_USERNAME) or ""
+            unique_id = f"{host}|{username}" if username else host
+            await self.async_set_unique_id(unique_id)
+            self._abort_if_unique_id_configured()
 
+            return self.async_create_entry(title=info["title"], data=user_input)
 
-class CannotConnect(HomeAssistantError):
-    """Error to indicate we cannot connect."""
-
-
-class InvalidAuth(HomeAssistantError):
-    """Error to indicate there is invalid auth."""
+        # If we reach here, validation failed — redisplay form with errors
+        return self.async_show_form(data_schema=STEP_USER_DATA_SCHEMA, errors=errors)
